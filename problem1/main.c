@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
     MPI_Bcast(&x, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&y, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    int range = y - x + 1;
+    int range = y - x ;
     int base = range / (size - 1);
     int remaining = range % (size - 1);
 
