@@ -3,7 +3,6 @@
 #include <mpi.h>
 #include <math.h>
 
-// Function to check if a number is prime
 int is_prime(int num) {
     if (num <= 1) return 0;
     if (num <= 3) return 1;
@@ -22,77 +21,85 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // Master process (rank 0)
     if (rank == 0) {
         printf("Enter lower bound (x): ");
         scanf("%d", &x);
         printf("Enter upper bound (y): ");
         scanf("%d", &y);
 
-        int total_range = y - x + 1;
-        int subrange_size = total_range / (size - 1);
-        int remaining = total_range % (size - 1); 
+        int total_numbers = y - x + 1;
+        int workers = size - 1;
+        int numbers_per_worker = total_numbers / workers;
+        int remainder = total_numbers % workers;
 
-        for (int i = 1; i < size; ++i) {
-            int start = x + (i - 1) * subrange_size + (i <= remaining ? i - 1 : remaining);
-            int end = start + subrange_size - 1;
-            if (i <= remaining) {
+        for (int i = 1; i < size; i++) {
+            int start = x + (i - 1) * numbers_per_worker;
+            int end = start + numbers_per_worker - 1;
+
+            if (i <= remainder) {
                 end++;
             }
+
+            if (i == size - 1) {
+                end = y;
+            }
+
             MPI_Send(&start, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
             MPI_Send(&end, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
         }
 
         int total_count = 0;
-        int* all_primes = (int*) malloc(total_range * sizeof(int));
-        int total_primes_index = 0;
+        int* all_primes = (int*)malloc(total_numbers * sizeof(int));
+        int index = 0;
 
-        for (int i = 1; i < size; ++i) {
-            int received_count;
-            MPI_Recv(&received_count, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            total_count += received_count;
+        for (int i = 1; i < size; i++) {
+            int count;
+            MPI_Recv(&count, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            total_count += count;
 
-            int* received_primes = (int*) malloc(received_count * sizeof(int));
-            MPI_Recv(received_primes, received_count, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            for (int j = 0; j < received_count; ++j) {
-                all_primes[total_primes_index++] = received_primes[j];
+            int* primes = (int*)malloc(count * sizeof(int));
+            MPI_Recv(primes, count, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+            for (int j = 0; j < count; j++) {
+                all_primes[index++] = primes[j];
             }
-            free(received_primes);
+            free(primes);
         }
 
-        printf("Total number of prime numbers between %d and %d: %d\n", x, y, total_count);
-        printf("List of prime numbers:\n");
-        for (int i = 0; i < total_primes_index; ++i) {
+        printf("\nTotal primes in [%d, %d]: %d\n", x, y, total_count);
+        printf("Primes: ");
+        for (int i = 0; i < index; i++) {
             printf("%d ", all_primes[i]);
         }
         printf("\n");
         free(all_primes);
+
     } else {
-        int lower_bound, upper_bound;
-        MPI_Recv(&lower_bound, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(&upper_bound, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        int start, end;
+        MPI_Recv(&start, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(&end, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        int local_count = 0;
-        int* local_primes = (int*) malloc((upper_bound - lower_bound + 1) * sizeof(int));
+        int count = 0;
+        int* primes = (int*)malloc((end - start + 1) * sizeof(int));
 
-        for (int i = lower_bound; i <= upper_bound; ++i) {
+        for (int i = start; i <= end; i++) {
             if (is_prime(i)) {
-                local_primes[local_count++] = i;
+                primes[count++] = i;
             }
         }
 
-        printf("Process %d found %d prime numbers: ", rank, local_count);
-        for (int i = 0; i < local_count; ++i) {
-            printf("%d ", local_primes[i]);
+        printf("Process %d: primes in [%d, %d] = %d\n", rank, start, end, count);
+        for (int i = 0; i < count; i++) {
+            printf("%d ", primes[i]);
         }
         printf("\n");
 
-        MPI_Send(&local_count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-        MPI_Send(local_primes, local_count, MPI_INT, 0, 0, MPI_COMM_WORLD);
-
-        free(local_primes);
+        MPI_Send(&count, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        MPI_Send(primes, count, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        free(primes);
     }
 
     MPI_Finalize();
     return 0;
 }
+جربي ده كدا
